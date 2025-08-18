@@ -19,7 +19,5 @@ public class ProductResponseDTO {
 
     private String description;
 
-    private int count;
-
     private BigDecimal price;
 }

@@ -29,12 +29,28 @@ public class UserServiceImp implements UserService {
     }
 
     @Override
+    public Optional<User> findByUsername(String username) {
+        return userRepository.findByUsername(username);
+    }
+
+    @Override
     @Transactional
     public UserResponseDTO save(UserCreationRequestDTO userDTO) {
+        // Verificar si ya existe un usuario con ese username
+        if (userRepository.existsByUsername(userDTO.getUsername())) {
+            throw new IllegalArgumentException("El usuario '" + userDTO.getUsername() + "' ya existe");
+        }
+
+        // Mapear DTO a entidad
         User user = userMapper.toEntity(userDTO);
 
-        return userMapper.toDto(userRepository.save(user));
+        // Guardar en la base de datos
+        User savedUser = userRepository.save(user);
+
+        // Retornar DTO de respuesta
+        return userMapper.toDto(savedUser);
     }
+
 
     @Override
     @Transactional
