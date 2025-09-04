@@ -5,9 +5,7 @@ import com.msvc.products.entity.Product;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingConstants;
 
-@Mapper(componentModel = MappingConstants.ComponentModel.SPRING, uses = {ProductMapper.class})
-public abstract class ProductMapper {
-
-    public abstract ProductResponseDTO toDto(Product product);
-
+@Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
+public interface ProductMapper {
+    ProductResponseDTO toDto(Product product);
 }

@@ -20,6 +20,11 @@ public class CartController {
         return ResponseEntity.ok(cartService.getCart(username));
     }
 
+    @GetMapping("/by-id/{id}")
+    public ResponseEntity<CartResponseDTO> getCartById(@PathVariable Long id) {
+        return ResponseEntity.ok(cartService.getCart(id));
+    }
+
     @PostMapping("/add/{username}")
     public ResponseEntity<CartResponseDTO> addItem(@PathVariable String username, @RequestBody CartRequestDTO cartRequestDTO) {
         return ResponseEntity.ok(cartService.addItemToCart(username, cartRequestDTO));

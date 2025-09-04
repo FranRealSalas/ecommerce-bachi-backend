@@ -41,6 +41,19 @@ public class CartServiceImp implements CartService {
     }
 
     @Override
+    public CartResponseDTO getCart(Long id) {
+        Cart cart = cartRepository.findById(id)
+                .orElseGet(() -> {
+                    Cart newCart = new Cart();
+
+                    newCart.setItems(new ArrayList<>());
+                    return cartRepository.save(newCart);
+                });
+
+        return mapToResponseDTO(cart);
+    }
+
+    @Override
     public CartResponseDTO addItemToCart(String username, CartRequestDTO cartRequestDTO) {
         Cart cart = cartRepository.findByUsername(username).orElseGet(() -> {
             Cart newCart = new Cart();
@@ -125,10 +138,17 @@ public class CartServiceImp implements CartService {
                 .build();
         BigDecimal totalPrice = BigDecimal.ZERO;
 
+        // Calcular cantidad total de unidades
+        long totalItems = cartResponseDTO.getItems().stream()
+                .mapToLong(CartItemResponseDTO::getQuantity)
+                .sum();
+
         for (BigDecimal num : cartResponseDTO.getItems().stream().map(CartItemResponseDTO::getTotalItemPrice).toList()) {
             totalPrice = totalPrice.add(num);
         }
+
         cartResponseDTO.setTotalPrice(totalPrice);
+        cartResponseDTO.setTotalItems(totalItems);
 
         return cartResponseDTO;
     }

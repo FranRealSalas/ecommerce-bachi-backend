@@ -1,24 +1,19 @@
-package com.msvc.cart_service.cart_service.dto.response;
+package com.order_service.dto.request;
 
+import com.order_service.dto.response.CartItemResponseDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.math.BigDecimal;
-import java.util.List;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
-public class CartResponseDTO {
-
+public class CreatePaymentRequestDTO {
     private String username;
-
     private BigDecimal totalPrice;
-
     private Long totalItems;
-
-    private List<CartItemResponseDTO> items;
+    private java.util.List<CartItemResponseDTO> items;
 }
