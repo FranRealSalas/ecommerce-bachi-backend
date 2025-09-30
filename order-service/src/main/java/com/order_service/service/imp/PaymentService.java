@@ -20,6 +20,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -49,31 +51,44 @@ public class PaymentService {
             String externalReference = generateExternalReference();
 
             // Crear items para MercadoPago
-            List<PreferenceItemRequest> items = createPreferenceItems(request.getItems());
+            List<PreferenceItemRequest> items = new ArrayList<>();
+            for (CartItemResponseDTO cartItem : request.getItems()) {
+                BigDecimal unitPrice = cartItem.getProductPrice().setScale(2, RoundingMode.HALF_UP);
+
+                PreferenceItemRequest item = PreferenceItemRequest.builder()
+                        .title(cartItem.getProductName())
+                        .quantity(cartItem.getQuantity())
+                        .unitPrice(unitPrice)
+                        .currencyId("ARS")
+                        .build();
+
+                items.add(item);
+            }
 
             // Crear URLs de retorno
             PreferenceBackUrlsRequest backUrls = PreferenceBackUrlsRequest.builder()
-                    .success(successUrl)
+                    .success(successUrl) // obligatorio si usamos autoReturn
                     .failure(failureUrl)
                     .pending(pendingUrl)
                     .build();
 
-            // Crear preferencia de pago
+            // Crear preferencia de pago con AutoReturn correcto
             PreferenceRequest preferenceRequest = PreferenceRequest.builder()
                     .items(items)
                     .backUrls(backUrls)
                     .externalReference(externalReference)
-                    .autoReturn("approved")
                     .build();
+
+            log.info("Preference request to MercadoPago: {}", preferenceRequest);
 
             // Llamar a MercadoPago API
             PreferenceClient client = new PreferenceClient();
             Preference preference = client.create(preferenceRequest);
 
-            // Guardar pago en base de datos
-            Payment payment = createPaymentEntity(
-                    request, preference.getId(), externalReference);
+            log.info("MercadoPago preference created: {}", preference.getId());
 
+            // Guardar pago en base de datos
+            Payment payment = createPaymentEntity(request, preference.getId(), externalReference);
             Payment savedPayment = paymentRepository.save(payment);
 
             log.info("Payment created successfully with ID: {}", savedPayment.getId());
@@ -87,8 +102,13 @@ public class PaymentService {
                     .externalReference(externalReference)
                     .build();
 
-        } catch (MPException | MPApiException e) {
-            log.error("Error creating MercadoPago preference: {}", e.getMessage(), e);
+        } catch (MPApiException e) {
+            log.error("MPApiException creating MercadoPago preference. Status: {}, Body: {}",
+                    e.getApiResponse().getStatusCode(),
+                    e.getApiResponse().getContent(), e);
+            throw new RuntimeException("Error creating payment preference: " + e.getApiResponse().getContent(), e);
+        } catch (MPException e) {
+            log.error("MPException creating MercadoPago preference: {}", e.getMessage(), e);
             throw new RuntimeException("Error creating payment preference", e);
         } catch (Exception e) {
             log.error("Unexpected error creating payment: {}", e.getMessage(), e);
@@ -96,17 +116,16 @@ public class PaymentService {
         }
     }
 
+    // --- resto de métodos se mantiene igual ---
     @Transactional
     public void updatePaymentStatus(Long mercadoPagoPaymentId, String status, String statusDetail) {
         try {
             log.info("Updating payment status for MP Payment ID: {}", mercadoPagoPaymentId);
 
-            // Buscar pago en base de datos
             Payment payment = paymentRepository
                     .findByMercadoPagoPaymentId(mercadoPagoPaymentId)
                     .orElseThrow(() -> new RuntimeException("Payment not found with MP ID: " + mercadoPagoPaymentId));
 
-            // Actualizar estado
             payment.setMercadoPagoStatus(status);
             payment.setMercadoPagoStatusDetail(statusDetail);
             payment.setStatus(mapMercadoPagoStatus(status));
@@ -130,44 +149,25 @@ public class PaymentService {
         return paymentRepository.findByUsername(username);
     }
 
-    private List<PreferenceItemRequest> createPreferenceItems(List<CartItemResponseDTO> cartItems) {
-        List<PreferenceItemRequest> items = new ArrayList<>();
-
-        for (CartItemResponseDTO cartItem : cartItems) {
-            PreferenceItemRequest item = PreferenceItemRequest.builder()
-                    .title(cartItem.getProductName())
-                    .quantity(cartItem.getQuantity())
-                    .unitPrice(cartItem.getProductPrice())
-                    .currencyId("ARS")
-                    .build();
-            items.add(item);
-        }
-
-        return items;
-    }
-
-    private Payment createPaymentEntity(
-            CreatePaymentRequestDTO request, String preferenceId, String externalReference) {
-
+    private Payment createPaymentEntity(CreatePaymentRequestDTO request, String preferenceId, String externalReference) {
         Payment payment = Payment.builder()
                 .username(request.getUsername())
-                .totalAmount(request.getTotalPrice())
+                .totalAmount(request.getTotalPrice().setScale(2, RoundingMode.HALF_UP))
                 .currency("ARS")
                 .status(PaymentStatus.PENDING)
                 .preferenceId(preferenceId)
                 .externalReference(externalReference)
                 .build();
 
-        // Crear items del pago
         List<PaymentItem> paymentItems = new ArrayList<>();
         for (CartItemResponseDTO cartItem : request.getItems()) {
             PaymentItem paymentItem = PaymentItem.builder()
                     .payment(payment)
                     .productId(cartItem.getProductId())
                     .productName(cartItem.getProductName())
-                    .unitPrice(cartItem.getProductPrice())
+                    .unitPrice(cartItem.getProductPrice().setScale(2, RoundingMode.HALF_UP))
                     .quantity(cartItem.getQuantity())
-                    .totalPrice(cartItem.getTotalItemPrice())
+                    .totalPrice(cartItem.getTotalItemPrice().setScale(2, RoundingMode.HALF_UP))
                     .build();
             paymentItems.add(paymentItem);
         }
